@@ -49,7 +49,7 @@ async def signup(req: SignupRequest):
         "avatar": "",
         "status_text": "Hey there! I am using TalkNepal",
         "created_at": datetime.utcnow(),
-        "is_verified": False,
+        "is_verified": True,
     }
     result = await db.users.insert_one(user)
     user_id = str(result.inserted_id)
