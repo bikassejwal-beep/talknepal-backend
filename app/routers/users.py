@@ -2,6 +2,8 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import shutil, os, uuid
+import random
+
 from app.services.database import db
 from bson import ObjectId
 
@@ -9,6 +11,12 @@ router = APIRouter()
 
 UPLOAD_DIR = "static/avatars"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# -------------------------
+# OTP storage (dev only)
+# -------------------------
+otp_store = {}
+otp_verified = {}
 
 
 # -------------------------
@@ -32,7 +40,7 @@ class UpdateProfile(BaseModel):
 
 
 # -------------------------
-# GET PROFILE (SAFE)
+# GET PROFILE
 # -------------------------
 @router.get("/profile/{user_id}")
 async def get_profile(user_id: str):
@@ -87,7 +95,7 @@ async def upload_avatar(user_id: str, file: UploadFile = File(...)):
 
 
 # -------------------------
-# SEARCH USERS (SAFE)
+# SEARCH USERS (SAFE - NO PHONE LEAK)
 # -------------------------
 @router.get("/search")
 async def search_users(phone: str = "", name: str = ""):
@@ -106,7 +114,7 @@ async def search_users(phone: str = "", name: str = ""):
 
 
 # -------------------------
-# GET CONTACTS (SAFE)
+# GET CONTACTS
 # -------------------------
 @router.get("/contacts/{user_id}")
 async def get_contacts(user_id: str):
@@ -137,3 +145,51 @@ async def add_contact(user_id: str, contact_id: str):
     )
 
     return {"status": "contact added"}
+
+
+# -------------------------
+# OTP SEND
+# -------------------------
+@router.post("/send-otp")
+async def send_otp(phone: str):
+    otp = str(random.randint(100000, 999999))
+
+    otp_store[phone] = otp
+    otp_verified[phone] = False
+
+    print(f"OTP for {phone} is {otp}")  # terminal ma dekhincha
+
+    return {"message": "OTP generated (check terminal)"}
+
+
+# -------------------------
+# OTP VERIFY
+# -------------------------
+@router.post("/verify-otp")
+async def verify_otp(phone: str, otp: str):
+
+    if otp_store.get(phone) != otp:
+        return {"status": "failed", "message": "Invalid OTP"}
+
+    otp_verified[phone] = True
+    del otp_store[phone]
+
+    return {"status": "success", "message": "OTP verified"}
+
+
+# -------------------------
+# LOGIN (BLOCK WITHOUT OTP)
+# -------------------------
+@router.post("/login")
+async def login(phone: str):
+
+    if not otp_verified.get(phone, False):
+        return {
+            "status": "failed",
+            "message": "OTP verification required"
+        }
+
+    return {
+        "status": "success",
+        "message": "Login successful"
+    }
